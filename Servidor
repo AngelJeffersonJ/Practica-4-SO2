@@ -1,0 +1,83 @@
+package Servidor;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
+
+public class Servidor {
+    private static final int PUERTO = 12345;
+    private Map<String, String> clientes = new HashMap<>();
+    private final String logFilePath = "log.dat";
+
+    public Servidor() {
+        cargarEstado();  // Cargar el estado al iniciar
+    }
+
+    public static void main(String[] args) {
+        Servidor servidor = new Servidor();
+        servidor.iniciar();
+    }
+
+    // Método para iniciar el servidor y escuchar solicitudes
+    public void iniciar() {
+        try (ServerSocket serverSocket = new ServerSocket(PUERTO)) {
+            System.out.println("Servidor en espera de conexiones...");
+            while (true) {
+                Socket clienteSocket = serverSocket.accept();
+                manejarCliente(clienteSocket);
+            }
+        } catch (IOException e) {
+            System.err.println("Error en el servidor: " + e.getMessage());
+        }
+    }
+
+    // Método para manejar la conexión con el cliente
+    private void manejarCliente(Socket clienteSocket) {
+        try (ObjectInputStream in = new ObjectInputStream(clienteSocket.getInputStream());
+             ObjectOutputStream out = new ObjectOutputStream(clienteSocket.getOutputStream())) {
+
+            String clienteId = (String) in.readObject();
+            String nuevoEstado = (String) in.readObject();
+            System.out.println("Recibida transacción de cliente " + clienteId);
+
+            // Registrar el estado del cliente antes de realizar cambios
+            clientes.put(clienteId, nuevoEstado);
+            guardarEstado();
+
+            out.writeObject("Transacción registrada y estado guardado");
+            clienteSocket.close();
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error al manejar cliente: " + e.getMessage());
+        }
+    }
+
+    // Método para guardar el estado en el archivo log
+    private void guardarEstado() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(logFilePath))) {
+            oos.writeObject(clientes);
+            System.out.println("Estado guardado en log.");
+        } catch (IOException e) {
+            System.err.println("Error al guardar el estado: " + e.getMessage());
+        }
+    }
+
+    // Método para cargar el estado desde el archivo log
+private void cargarEstado() {
+    File logFile = new File(logFilePath);
+    if (logFile.exists()) {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(logFilePath))) {
+            clientes = (Map<String, String>) ois.readObject();
+            System.out.println("Estado restaurado desde el log:");
+            clientes.forEach((id, estado) -> 
+                System.out.println("Cliente ID: " + id + ", Estado: " + estado));
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error al cargar el estado: " + e.getMessage());
+        }
+    } else {
+        System.out.println("No se encontró log previo. Iniciando nuevo estado.");
+    }
+}
+
+}
